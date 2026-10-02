@@ -1,0 +1,20 @@
+# VB6 derleme ciktilari ve gecici dosyalar
+*.exe
+*.dll
+*.ocx
+*.obj
+*.lib
+*.exp
+*.pdb
+*.vbw
+*.tlb
+
+# Uygulama calisma zamani uretimi
+Logs/
+config.ini
+*.log
+
+# Editor / OS
+*.bak
+Thumbs.db
+desktop.ini
