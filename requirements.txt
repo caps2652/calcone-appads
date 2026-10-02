@@ -1,0 +1,5 @@
+mss>=9.0.1
+Pillow>=10.0.0
+# Optional: system tray icon (makes monitoring visible to the user).
+# The app runs without it, but installing it is recommended for transparency.
+pystray>=0.19.4

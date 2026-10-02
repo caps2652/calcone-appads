@@ -1,0 +1,11 @@
+{
+  "interval_seconds": 300,
+  "output_dir": "screenshots",
+  "image_format": "JPEG",
+  "jpeg_quality": 60,
+  "capture_all_monitors": true,
+  "retention_days": 14,
+  "show_startup_notice": true,
+  "show_tray_icon": true,
+  "notice_text": "Bu bilgisayarda, güvenlik amacıyla ebeveyn tarafından ekran görüntüsü kaydı yapılmaktadır."
+}

@@ -1,0 +1,16 @@
+# Captured screenshots and the generated gallery — never commit personal data.
+screenshots/
+*.jpg
+*.jpeg
+*.png
+gallery.html
+
+# Local configuration (may contain personal paths).
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
