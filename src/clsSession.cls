@@ -41,6 +41,7 @@ Attribute mConn.VB_VarHelpID = -1
 Private mLocalID As String
 Private mLocalPwd As String
 Private mLocalPwdHash As String
+Private mRequirePwd As Boolean          ' erisim sifresi isteniyor mu?
 Private mHostName As String
 Private mStatusText As String
 Private mStatusKind As StatusKind
@@ -51,9 +52,19 @@ Private mStatusKind As StatusKind
 Public Sub InitLocalIdentity()
     mLocalID = GenerateConnectionID()
     mHostName = LocalHostName()
-    RegeneratePassword
+    mRequirePwd = ConfigGetRequirePassword()
+
+    ' Erisim sifresi yalnizca istenirse uretilir; aksi halde bos birakilir.
+    If mRequirePwd Then
+        RegeneratePassword
+    Else
+        mLocalPwd = ""
+        mLocalPwdHash = ""
+    End If
+
     SetStatus "Hazir", SK_READY
-    LogWrite LVL_INFO, "Yerel kimlik olusturuldu. ID=" & mLocalID   ' sifre loglanmaz
+    LogWrite LVL_INFO, "Yerel kimlik olusturuldu. ID=" & mLocalID & _
+             " (sifre " & IIf(mRequirePwd, "acik", "kapali") & ")"   ' sifre loglanmaz
 End Sub
 
 Public Sub RegeneratePassword()
@@ -61,6 +72,25 @@ Public Sub RegeneratePassword()
     ' Phase 2 challenge-response icin referans hash (duz metin saklanmaz).
     mLocalPwdHash = Sha256HexFromString(mLocalID & ":" & mLocalPwd)
     RaiseEvent IdentityChanged
+End Sub
+
+Public Property Get RequirePassword() As Boolean
+    RequirePassword = mRequirePwd
+End Property
+
+' Erisim sifresini ac/kapat. Acilinca sifre uretilir, kapaninca temizlenir.
+Public Sub SetRequirePassword(ByVal b As Boolean)
+    If mRequirePwd = b Then Exit Sub
+    mRequirePwd = b
+    ConfigSetRequirePassword b
+    If b Then
+        RegeneratePassword          ' olusturur ve IdentityChanged yayinlar
+    Else
+        mLocalPwd = ""
+        mLocalPwdHash = ""
+        RaiseEvent IdentityChanged
+    End If
+    LogWrite LVL_INFO, "Erisim sifresi " & IIf(b, "acildi", "kapatildi")
 End Sub
 
 Public Property Get LocalID() As String
@@ -160,7 +190,7 @@ Private Sub mListener_ClientAccepted(ByVal client As clsConnection)
     ' PHASE 1: pipe'i kabul et ve HELLO bekle.
     ' PHASE 2: burada once Allow/Deny ve sifre dogrulamasi yapilacak.
     If Not mConn Is Nothing Then
-        ' Zaten aktif bir eş var; yeni geleni nazikce kapat (tek oturum).
+        ' Zaten aktif bir es var; yeni geleni nazikce kapat (tek oturum).
         client.CloseNow
         Exit Sub
     End If
@@ -260,7 +290,7 @@ Private Function ParseTarget(ByVal s As String, ByRef ip As String, ByRef port A
         port = ConfigGetPort()
     End If
 
-    ' Kaba IPv4 dogrulamasi: dört oktet, her biri 0..255.
+    ' Kaba IPv4 dogrulamasi: dort oktet, her biri 0..255.
     If Not IsValidIPv4(ip) Then ParseTarget = False: Exit Function
     If port < 1 Or port > 65535 Then ParseTarget = False: Exit Function
     ParseTarget = True

@@ -72,6 +72,7 @@ Private Enum BtnId
     BID_MANAGE = 8
     BID_CONNECT = 9
     BID_THEME = 10
+    BID_TOGGLE_PWD = 11
 End Enum
 
 '--- Buton stilleri ---
@@ -81,6 +82,7 @@ Private Enum BtnStyle
     BS_TITLE = 2        ' baslik cubugu ikon butonu
     BS_TITLECLOSE = 3   ' baslik kapat (hover kirmizi)
     BS_GHOST = 4        ' arka plansiz hafif buton
+    BS_TOGGLE = 5       ' modern ac/kapa anahtari (label + switch)
 End Enum
 
 '--- Basit vektorel ikon (glyph) turleri ---
@@ -107,6 +109,7 @@ Private Type UiButton
     caption As String
     rc As RECT
     enabled As Boolean
+    onState As Boolean      ' BS_TOGGLE icin acik/kapali durumu
 End Type
 
 Private Const MAX_BTNS As Long = 32
@@ -219,33 +222,37 @@ End Sub
 
 Private Sub LayoutLeftCard(ByRef rc As RECT)
     Dim ip As Long, bx As Long, bw As Long, bh As Long, y As Long
+    Dim halfGap As Long, halfW As Long
     ip = Dp(22)                          ' ic bosluk
     bx = rc.Left + ip
     bw = (rc.Right - rc.Left) - ip * 2
-
-    ' Sifre satiri butonlari (goz + kopyala) kart ciziminde konumlanir;
-    ' burada sadece alt aksiyon butonlarini olustururuz.
     bh = Dp(38)
-    Dim halfGap As Long, halfW As Long
     halfGap = Dp(10)
     halfW = (bw - halfGap) \ 2
 
-    y = rc.Bottom - ip - bh * 2 - halfGap     ' iki satir buton
+    ' Erisim sifresi ac/kapa anahtari (her zaman gorunur, varsayilan KAPALI).
+    AddBtn BID_TOGGLE_PWD, BS_TOGGLE, GL_NONE, "Erisim sifresi iste", _
+           bx, rc.Top + Dp(162), rc.Right - ip, rc.Top + Dp(196), _
+           gSession.RequirePassword
 
-    ' Goz (reveal) ve kopyalar sifre satirinin yaninda:
-    ' reveal kucuk ikon buton, parola degeri hizasinda (kart ciziminde rc bilgisi kullanilir)
-    Dim pwRowY As Long
-    pwRowY = rc.Top + Dp(188)
-    AddBtn BID_REVEAL, BS_GHOST, GL_EYE, "", rc.Right - ip - Dp(34), pwRowY, rc.Right - ip, pwRowY + Dp(28)
+    If gSession.RequirePassword Then
+        ' Sifre acik: goz (reveal) + iki satir buton (sifre islemleri dahil).
+        Dim pwRowY As Long
+        pwRowY = rc.Top + Dp(228)
+        AddBtn BID_REVEAL, BS_GHOST, GL_EYE, "", rc.Right - ip - Dp(34), pwRowY, rc.Right - ip, pwRowY + Dp(28)
 
-    ' 1. satir: Yeni Sifre | Sifreyi Kopyala
-    AddBtn BID_NEWPWD, BS_NORMAL, GL_REFRESH, "Yeni Sifre", bx, y, bx + halfW, y + bh
-    AddBtn BID_COPYPWD, BS_NORMAL, GL_COPY, "Sifreyi Kopyala", bx + halfW + halfGap, y, bx + bw, y + bh
-
-    ' 2. satir: ID'yi Kopyala | Ayarlar  (+ alt: Baglantilari Yonet tam genislik)
-    y = y + bh + halfGap
-    AddBtn BID_COPYID, BS_NORMAL, GL_ID, "ID'yi Kopyala", bx, y, bx + halfW, y + bh
-    AddBtn BID_SETTINGS, BS_NORMAL, GL_GEAR, "Ayarlar", bx + halfW + halfGap, y, bx + bw, y + bh
+        y = rc.Bottom - ip - bh * 2 - halfGap
+        AddBtn BID_NEWPWD, BS_NORMAL, GL_REFRESH, "Yeni Sifre", bx, y, bx + halfW, y + bh
+        AddBtn BID_COPYPWD, BS_NORMAL, GL_COPY, "Sifreyi Kopyala", bx + halfW + halfGap, y, bx + bw, y + bh
+        y = y + bh + halfGap
+        AddBtn BID_COPYID, BS_NORMAL, GL_ID, "ID'yi Kopyala", bx, y, bx + halfW, y + bh
+        AddBtn BID_SETTINGS, BS_NORMAL, GL_GEAR, "Ayarlar", bx + halfW + halfGap, y, bx + bw, y + bh
+    Else
+        ' Sifre kapali: tek satir buton (ID kopyala + ayarlar).
+        y = rc.Bottom - ip - bh
+        AddBtn BID_COPYID, BS_NORMAL, GL_ID, "ID'yi Kopyala", bx, y, bx + halfW, y + bh
+        AddBtn BID_SETTINGS, BS_NORMAL, GL_GEAR, "Ayarlar", bx + halfW + halfGap, y, bx + bw, y + bh
+    End If
 End Sub
 
 Private Sub LayoutRightCard(ByRef rc As RECT)
@@ -282,12 +289,13 @@ Private Sub LayoutRightCard(ByRef rc As RECT)
     AddBtn BID_MANAGE, BS_NORMAL, GL_LIST, "Baglantilari Yonet", bx, my, bx + bw, my + Dp(38)
 End Sub
 
-Private Sub AddBtn(ByVal id As BtnId, ByVal style As BtnStyle, ByVal gl As Glyph, ByVal caption As String, ByVal l As Long, ByVal t As Long, ByVal r As Long, ByVal b As Long)
+Private Sub AddBtn(ByVal id As BtnId, ByVal style As BtnStyle, ByVal gl As Glyph, ByVal caption As String, ByVal l As Long, ByVal t As Long, ByVal r As Long, ByVal b As Long, Optional ByVal onState As Boolean = False)
     If mBtnCount >= MAX_BTNS Then Exit Sub
     With mBtn(mBtnCount)
         .id = id: .style = style: .gl = gl: .caption = caption
         .rc.Left = l: .rc.Top = t: .rc.Right = r: .rc.Bottom = b
         .enabled = True
+        .onState = onState
     End With
     mBtnCount = mBtnCount + 1
 End Sub
@@ -354,20 +362,29 @@ Private Sub DrawLeftCard(ByVal hdc As Long)
     DrawTextC hdc, gSession.StatusText, x + Dp(18), dotY - Dp(12), rc.Right - ip, dotY + Dp(12), _
               gTheme.TextPrimary, UIFont(9.5)
 
-    ' Password
-    DrawTextC hdc, "Erisim Sifresi", x, rc.Top + Dp(166), rc.Right - ip, rc.Top + Dp(186), _
-              gTheme.TextSecondary, UIFont(9)
-    Dim pwText As String
-    If mRevealPwd Then
-        pwText = gSession.LocalPassword
-    Else
-        pwText = String$(Len(gSession.LocalPassword), ChrW$(&H2022))   ' bullet
-    End If
-    DrawTextC hdc, pwText, x, rc.Top + Dp(188), rc.Right - ip - Dp(40), rc.Top + Dp(218), _
-              gTheme.TextPrimary, UIFont(15, FW_SEMIBOLD)
+    ' (Erisim sifresi ac/kapa anahtari BS_TOGGLE butonu olarak cizilir.)
 
-    ' Ayirici (butonlarin ustu)
-    DrawLineC hdc, x, rc.Bottom - Dp(112), rc.Right - ip, rc.Bottom - Dp(112), gTheme.Separator
+    If gSession.RequirePassword Then
+        ' Sifre acik: etiket + maskeli/acik deger.
+        DrawTextC hdc, "Erisim Sifresi", x, rc.Top + Dp(204), rc.Right - ip, rc.Top + Dp(224), _
+                  gTheme.TextSecondary, UIFont(9)
+        Dim pwText As String
+        If mRevealPwd Then
+            pwText = gSession.LocalPassword
+        Else
+            pwText = String$(Len(gSession.LocalPassword), ChrW$(&H2022))   ' bullet
+        End If
+        DrawTextC hdc, pwText, x, rc.Top + Dp(224), rc.Right - ip - Dp(40), rc.Top + Dp(256), _
+                  gTheme.TextPrimary, UIFont(15, FW_SEMIBOLD)
+        DrawLineC hdc, x, rc.Bottom - Dp(120), rc.Right - ip, rc.Bottom - Dp(120), gTheme.Separator
+    Else
+        ' Sifre kapali: katilimli erisim aciklamasi.
+        DrawTextC hdc, "Sifre kapali. Baglantilar yalnizca sizin onayinizla" & vbCrLf & _
+                  "(Allow / Deny) kurulur. Gozetimsiz erisim icin sifreyi acin.", _
+                  x, rc.Top + Dp(204), rc.Right - ip, rc.Top + Dp(252), _
+                  gTheme.TextSecondary, UIFont(8.5), DT_LEFT Or DT_WORDBREAK Or DT_NOPREFIX
+        DrawLineC hdc, x, rc.Bottom - Dp(72), rc.Right - ip, rc.Bottom - Dp(72), gTheme.Separator
+    End If
 End Sub
 
 Private Sub DrawRightCard(ByVal hdc As Long)
@@ -430,6 +447,9 @@ Private Sub DrawButton(ByVal hdc As Long, ByRef btn As UiButton)
     Dim bg As Long, fg As Long, hovered As Boolean, pressedNow As Boolean
     hovered = (mHover = btn.id)
     pressedNow = (mPressed = btn.id And hovered)
+
+    ' Toggle anahtari kendi ciziminde yonetilir.
+    If btn.style = BS_TOGGLE Then DrawToggleButton hdc, btn: Exit Sub
 
     Dim l As Long, t As Long, r As Long, b As Long
     l = btn.rc.Left: t = btn.rc.Top: r = btn.rc.Right: b = btn.rc.Bottom
@@ -501,6 +521,38 @@ Private Sub DrawButton(ByVal hdc As Long, ByRef btn As UiButton)
     Else
         DrawTextC hdc, btn.caption, l, t, r, b, fg, hFont, DT_CENTER Or DT_SINGLELINE Or DT_VCENTER Or DT_NOPREFIX
     End If
+End Sub
+
+'--- Modern ac/kapa anahtari (label solda, switch sagda) ---
+Private Sub DrawToggleButton(ByVal hdc As Long, ByRef btn As UiButton)
+    Dim l As Long, t As Long, r As Long, b As Long
+    l = btn.rc.Left: t = btn.rc.Top: r = btn.rc.Right: b = btn.rc.Bottom
+
+    If mHover = btn.id Then FillRoundRectC hdc, l, t, r, b, Dp(8), gTheme.BtnHover
+
+    ' Etiket
+    DrawTextC hdc, btn.caption, l + Dp(4), t, r - Dp(56), b, gTheme.TextPrimary, UIFont(9.5)
+
+    ' Anahtar govdesi
+    Dim sw As Long, sh As Long, sx As Long, sy As Long, cy As Long
+    sw = Dp(44): sh = Dp(24)
+    sx = r - sw - Dp(4)
+    sy = (t + b) \ 2 - sh \ 2
+    cy = sy + sh \ 2
+
+    Dim trackCol As Long
+    If btn.onState Then
+        trackCol = gTheme.Accent
+    Else
+        trackCol = IIf(gTheme.IsDark, RGB(80, 80, 80), RGB(200, 200, 200))
+    End If
+    FillRoundRectC hdc, sx, sy, sx + sw, sy + sh, sh \ 2, trackCol
+
+    ' Topuz (knob)
+    Dim kr As Long, kcx As Long
+    kr = sh \ 2 - Dp(3)
+    If btn.onState Then kcx = sx + sw - sh \ 2 Else kcx = sx + sh \ 2
+    FillCircleC hdc, kcx, cy, kr, RGB(255, 255, 255)
 End Sub
 
 '=====================================================================
@@ -687,6 +739,14 @@ Private Sub DoAction(ByVal id As BtnId)
 
         Case BID_THEME
             ToggleTheme
+
+        Case BID_TOGGLE_PWD
+            gSession.SetRequirePassword Not gSession.RequirePassword
+            If gSession.RequirePassword Then
+                ShowToast "Erisim sifresi acildi", SK_READY
+            Else
+                ShowToast "Erisim sifresi kapatildi", SK_BUSY
+            End If
     End Select
     Exit Sub
 Fail:
@@ -731,7 +791,8 @@ Private Sub mSession_StatusChanged(ByVal text As String, ByVal kind As StatusKin
 End Sub
 
 Private Sub mSession_IdentityChanged()
-    PaintAll
+    ' Sifre acilip kapaninca sol kart duzeni (butonlar) degisir -> yeniden kur.
+    LayoutAndPaint
 End Sub
 
 Private Sub mSession_IncomingPeer(ByVal peerIP As String)

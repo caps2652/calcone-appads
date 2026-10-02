@@ -12,6 +12,7 @@ Private Const CFG_FILE As String = "config.ini"
 Private Const SEC_GENERAL As String = "General"
 Private Const SEC_APPEARANCE As String = "Appearance"
 Private Const SEC_CONNECTION As String = "Connection"
+Private Const SEC_SECURITY As String = "Security"
 
 ' Tema modlari
 Public Enum ThemeMode
@@ -24,6 +25,7 @@ Private mFile As String
 Private mThemeMode As ThemeMode
 Private mPort As Long
 Private mTimeoutMs As Long
+Private mRequirePwd As Boolean
 
 Public Sub ConfigLoad()
     mFile = AppPath() & CFG_FILE
@@ -36,6 +38,10 @@ Public Sub ConfigLoad()
 
     mTimeoutMs = IniGetLong(SEC_CONNECTION, "TimeoutMs", DEFAULT_TIMEOUT_MS)
     If mTimeoutMs < 1000 Then mTimeoutMs = DEFAULT_TIMEOUT_MS
+
+    ' Erisim sifresi VARSAYILAN OLARAK KAPALI. Istenirse kullanici acar.
+    ' (Kapaliyken erisim "katilimli"dir: host her baglantiyi Allow/Deny ile onaylar.)
+    mRequirePwd = (IniGetLong(SEC_SECURITY, "RequirePassword", 0) <> 0)
 
     LogSetDebug (IniGetLong(SEC_GENERAL, "Debug", 0) <> 0)
 End Sub
@@ -64,6 +70,15 @@ End Sub
 Public Function ConfigGetTimeoutMs() As Long
     ConfigGetTimeoutMs = mTimeoutMs
 End Function
+
+Public Function ConfigGetRequirePassword() As Boolean
+    ConfigGetRequirePassword = mRequirePwd
+End Function
+
+Public Sub ConfigSetRequirePassword(ByVal b As Boolean)
+    mRequirePwd = b
+    IniPutLong SEC_SECURITY, "RequirePassword", IIf(b, 1, 0)
+End Sub
 
 '=====================================================================
 ' INI yardimcilari (Unicode / W API)

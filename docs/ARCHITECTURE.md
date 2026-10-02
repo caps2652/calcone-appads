@@ -83,12 +83,21 @@ Gönderimde kısmi `send` sonuçları kuyruklanır ve `FD_WRITE`'ta boşaltılı
 
 ## Güvenlik ilkeleri (uygulanmakta)
 
+- **Erişim şifresi opsiyoneldir ve varsayılan olarak KAPALIDIR.** Ana
+  ekrandaki "Erişim şifresi iste" anahtarıyla açılır/kapanır
+  (`Security/RequirePassword`, `config.ini`).
+  - **Kapalı (varsayılan) = katılımlı erişim:** şifre üretilmez; her gelen
+    bağlantı host tarafından **Allow/Deny** ile onaylanır (PHASE 2).
+  - **Açık = gözetimsiz erişim:** `CryptGenRandom` ile şifre üretilir; karşı
+    taraf şifreyle (kimse onay vermeden) bağlanabilir — kendi bilgisayarlarınız
+    için uygundur.
 - Şifreler **düz metin saklanmaz** ve **loglanmaz**; referans olarak SHA-256
-  hash tutulur.
-- Bağlantı ID ve erişim şifresi `CryptGenRandom` ile üretilir.
+  hash tutulur. Şifre kapatılınca bellekten temizlenir.
+- Bağlantı ID `CryptGenRandom` ile üretilir.
 - Paket parser uzunluk sınırı uygular (bellek taşması/DoS koruması).
 - Bağlantı kapanışında socket/kaynaklar düzgün serbest bırakılır.
-- (PHASE 2) Host tarafında **Allow/Deny** onayı + şifre challenge-response.
+- (PHASE 2) Host tarafında **Allow/Deny** onayı; şifre açıksa ayrıca
+  challenge-response doğrulama.
 
 ---
 
